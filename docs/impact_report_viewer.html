@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Impact Report Viewer</title>
+
+  <!-- D3.js for the graph -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f1724;
+      --card: #0b1220;
+      --muted: #9aa6b2;
+      --accent: #60a5fa;
+      --success: #10b981;
+      --danger: #ef4444;
+      --glass: rgba(255, 255, 255, 0.03);
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, "Helvetica Neue", Arial;
+    }
+
+    body {
+      background: linear-gradient(180deg, #071025 0%, #081325 100%);
+      color: #e6eef6;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px
+    }
+
+    header .meta {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .top-row {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      margin-bottom: 16px
+    }
+
+    .summary {
+      flex: 1 1 360px;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6)
+    }
+
+    .summary h2 {
+      margin: 0 0 8px 0;
+      font-size: 16px
+    }
+
+    .summary .kpi {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px
+    }
+
+    .kpi .tile {
+      flex: 1;
+      padding: 10px;
+      background: var(--glass);
+      border-radius: 8px;
+      text-align: center
+    }
+
+    .kpi .big {
+      font-size: 20px;
+      font-weight: 700
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px
+    }
+
+    .btn {
+      background: linear-gradient(180deg, var(--accent), #3b82f6);
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: #012;
+      cursor: pointer;
+      border: none;
+      font-weight: 600
+    }
+
+    .btn.secondary {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--muted)
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 480px 1fr;
+      gap: 16px
+    }
+
+    .left-panel {
+      max-height: 72vh;
+      overflow: auto
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.02)
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 14px
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      margin-right: 8px
+    }
+
+    .evidence {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      padding-left: 6px
+    }
+
+    .collapse {
+      margin-top: 8px
+    }
+
+    .graph-panel {
+      background: transparent;
+      border-radius: 10px;
+      padding: 8px;
+      min-height: 72vh
+    }
+
+    svg {
+      width: 100%;
+      height: 72vh;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.005));
+    }
+
+    .node {
+      stroke: #082033;
+      stroke-width: 1.2px;
+    }
+
+    .node .label {
+      font-size: 12px;
+      pointer-events: none;
+      fill: #e6eef6;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5)
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px
+    }
+
+    .legend .litem {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      display: inline-block
+    }
+
+    .dot.writer {
+      background: var(--accent)
+    }
+
+    .dot.reader {
+      background: var(--success)
+    }
+
+    .dot.risk {
+      background: var(--danger)
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 14px
+    }
+
+    /* responsive */
+    @media (max-width:980px) {
+      .content {
+        grid-template-columns: 1fr;
+        grid-auto-rows: auto
+      }
+
+      svg {
+        height: 52vh
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Impact Report Viewer</h1>
+        <div class="meta">Interactive view of <strong>impact_report.json</strong> — shows changed files, affected
+          modules, evidence and graph</div>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn" id="reloadBtn">Reload</button>
+        <button class="btn secondary" id="exportBtn">Export PNG</button>
+      </div>
+    </header>
+
+    <div class="top-row">
+      <div class="summary card">
+        <h2>Summary</h2>
+        <div id="summaryText" class="meta">Loading…</div>
+        <div class="kpi" style="margin-top:12px">
+          <div class="tile">
+            <div class="big" id="k_changed">0</div>
+            <div class="meta">Changed files</div>
+          </div>
+          <div class="tile">
+            <div class="big" id="k_findings">0</div>
+            <div class="meta">Findings</div>
+          </div>
+          <div class="tile">
+            <div class="big" id="k_conf_high">0</div>
+            <div class="meta">High risk</div>
+          </div>
+        </div>
+        <div class="controls">
+          <label class="meta">Filter:</label>
+          <select id="filterSelect">
+            <option value="all">All</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="flex:1" class="card">
+        <h2>Changed files</h2>
+        <div id="changedFiles" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+        <div class="legend">
+          <div class="litem"><span class="dot writer"></span> Writer</div>
+          <div class="litem"><span class="dot reader"></span> Reader</div>
+          <div class="litem"><span class="dot risk"></span> High risk</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="left-panel">
+        <div class="card">
+          <h3>Findings</h3>
+          <div id="findingsList" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
+          <h3>Raw JSON</h3>
+          <pre id="rawJson" style="max-height:240px;overflow:auto;color:var(--muted);font-size:12px"></pre>
+        </div>
+      </div>
+
+      <div class="graph-panel card">
+        <h3>Impact Graph</h3>
+        <svg id="graphSvg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+
+    <footer>Tip: Run a local HTTP server to load this file (see instructions). Use the filter to focus on high-risk
+      findings.</footer>
+  </div>
+
+  <script>
+    // CONFIG: path to JSON (relative to this html file)
+    const JSON_PATH = "impact_report.json";
+
+    let rawReport = null;
+    const svg = d3.select("#graphSvg");
+    const width = 800, height = 600;
+
+    document.getElementById("reloadBtn").addEventListener("click", loadAndRender);
+    document.getElementById("filterSelect").addEventListener("change", () => renderFindings(rawReport));
+    document.getElementById("exportBtn").addEventListener("click", exportPNG);
+
+    async function loadAndRender() {
+      try {
+        const res = await fetch(JSON_PATH);
+        if (!res.ok) throw new Error("Failed fetching " + JSON_PATH + " (serve via http)");
+        rawReport = await res.json();
+      } catch (err) {
+        // fallback: try to find JSON embed or show friendly message
+        document.getElementById("summaryText").innerText = "Error loading JSON: " + err.message + ". If opening file directly from file://, please run a local server: `python -m http.server` in the docs folder.";
+        document.getElementById("rawJson").innerText = err.stack || err.message;
+        return;
+      }
+
+      document.getElementById("rawJson").innerText = JSON.stringify(rawReport, null, 2);
+      document.getElementById("k_changed").innerText = (rawReport.summary.changed_files || []).length;
+      document.getElementById("k_findings").innerText = rawReport.findings.length;
+      const highCount = rawReport.findings.filter(f => f.confidence && f.confidence.toLowerCase() === "high").length;
+      document.getElementById("k_conf_high").innerText = highCount;
+      document.getElementById("summaryText").innerText = `Report contains ${rawReport.findings.length} findings for ${(rawReport.summary.changed_files || []).length} changed file(s).`;
+
+      renderChangedFiles(rawReport);
+      renderFindings(rawReport);
+      renderGraph(rawReport);
+    }
+
+    function renderChangedFiles(report) {
+      const container = document.getElementById("changedFiles");
+      container.innerHTML = "";
+      (report.summary.changed_files || []).forEach(ch => {
+        const el = document.createElement("div");
+        el.className = "tag";
+        el.innerHTML = `<strong>${ch.filename}</strong><div style="color:var(--muted);font-size:12px">Before: ${(ch.before_header || []).length || 0} cols • After: ${(ch.after_header || []).length || 0} cols</div>`;
+        container.appendChild(el);
+      });
+    }
+
+    function renderFindings(report) {
+      const list = document.getElementById("findingsList");
+      list.innerHTML = "";
+      if (!report) return;
+      const filter = document.getElementById("filterSelect").value;
+      report.findings.forEach((f, idx) => {
+        if (filter !== 'all' && f.confidence !== filter) return;
+        const card = document.createElement("div");
+        card.className = "card";
+        const riskColor = f.confidence === "High" ? "var(--danger)" : (f.confidence === "Medium" ? "orange" : "var(--success)");
+        card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3>${f.module} • <span style="font-weight:600">${f.file}</span></h3>
+            <div style="color:var(--muted);font-size:13px;margin-top:4px">${f.impact}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;color:${riskColor};font-weight:700">${f.confidence}</div>
+          </div>
+        </div>
+        <div class="evidence">${f.evidence.map(e => `<div>• ${escapeHtml(e)}</div>`).join("")}</div>
+        <div class="collapse">
+          <details>
+            <summary style="cursor:pointer;color:var(--accent)">LLM Explanation & Suggestions</summary>
+            <pre style="white-space:pre-wrap;color:var(--muted);">${escapeHtml(f.llm_explanation || "(no LLM explanation)")}</pre>
+          </details>
+        </div>
+      `;
+        list.appendChild(card);
+      });
+    }
+
+    // Build a graph: nodes are modules and changed files. Edges: module->file (writes), file->module (readers)
+    function renderGraph(report) {
+      svg.selectAll("*").remove();
+      const findings = report.findings || [];
+      // node map
+      const nodes = [], nodeIndex = new Map();
+      function addNode(id, label, type) {
+        if (nodeIndex.has(id)) return;
+        const idx = nodes.length;
+        nodeIndex.set(id, idx);
+        nodes.push({ id, label, type });
+      }
+      const links = [];
+      // add changed files nodes
+      (report.summary.changed_files || []).forEach(ch => {
+        addNode("file:" + ch.filename, ch.filename, "file");
+      });
+
+      // add modules and edges
+      findings.forEach(f => {
+        const modId = "mod:" + f.module + ":" + f.file;
+        addNode(modId, `${f.module}/${f.file}`, "module");
+        // writer edge if evidence mentions "writes" else treat as reader
+        const wrote = f.evidence.some(e => e.toLowerCase().includes("writes to") || e.toLowerCase().includes("writes '"));
+        const fileNodeId = "file:" + f.changed_file;
+        if (wrote) {
+          links.push({ source: modId, target: fileNodeId, type: "writes" });
+        } else {
+          // reader
+          links.push({ source: fileNodeId, target: modId, type: "reads" });
+        }
+      });
+
+      // build force simulation
+      const simulation = d3.forceSimulation(nodes)
+        .force("charge", d3.forceManyBody().strength(-220))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("link", d3.forceLink(links).id((d, i) => d.id).distance(140).strength(1))
+        .force("collision", d3.forceCollide().radius(40));
+
+      // link lines
+      const link = svg.append("g")
+        .attr("stroke", "rgba(255,255,255,0.06)")
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("stroke-width", 1.5);
+
+      // nodes group
+      const node = svg.append("g")
+        .selectAll("g")
+        .data(nodes)
+        .join("g")
+        .call(drag(simulation));
+
+      node.append("circle")
+        .attr("r", d => d.type === "file" ? 18 : 14)
+        .attr("fill", d => d.type === "file" ? "var(--accent)" : "#0ea5a1")
+        .attr("class", "node")
+        .on("mouseover", function (e, d) { d3.select(this).attr("stroke", "rgba(255,255,255,0.25)").attr("stroke-width", 2) })
+        .on("mouseout", function (e, d) { d3.select(this).attr("stroke", null) });
+
+      node.append("text")
+        .attr("class", "label")
+        .attr("x", 20)
+        .attr("y", 5)
+        .text(d => d.label)
+        .style("font-size", "12px")
+        .style("fill", "#e6eef6");
+
+      simulation.on("tick", () => {
+        link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+        node.attr("transform", d => `translate(${d.x},${d.y})`);
+      });
+
+      // zoom / pan
+      svg.call(d3.zoom().on("zoom", (event) => svg.selectAll("g").attr("transform", event.transform)));
+    }
+
+    // helpers
+    function drag(simulation) {
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x; d.fy = d.y;
+      }
+      function dragged(event, d) {
+        d.fx = event.x; d.fy = event.y;
+      }
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null; d.fy = null;
+      }
+      return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+    }
+
+    function escapeHtml(s) { if (!s) return ""; return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+
+    async function exportPNG() {
+      // simple export: render SVG to PNG via canvas
+      const svgNode = document.querySelector("#graphSvg");
+      const serializer = new XMLSerializer();
+      const source = serializer.serializeToString(svgNode);
+      const img = new Image();
+      const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      img.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = svgNode.clientWidth * 2;
+        canvas.height = svgNode.clientHeight * 2;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#071025";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        const a = document.createElement("a");
+        a.download = "impact_graph.png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      };
+      img.src = url;
+    }
+
+    // initial load
+    loadAndRender();
+  </script>
+</body>
+
+</html>
